@@ -1,0 +1,102 @@
+;;; init.el --- Configuration of Emacs
+;;
+;; (c) 2000 - 2016 Arjen Wiersma
+;;
+
+;; Added by Package.el.  This must come before configurations of
+;; installed packages.  Don't delete this line.  If you don't want it,
+;; just comment it out by adding a semicolon to the start of the line.
+;; You may delete these explanatory comments.
+(package-initialize)
+
+(require 'org)
+(require 'ob-tangle)
+
+(setq init-dir (file-name-directory (or load-file-name (buffer-file-name))))
+(org-babel-load-file (expand-file-name "loader.org" init-dir))
+(org-babel-load-file (expand-file-name "gcal-config.org" init-dir))
+
+(defun find-first-non-ascii-char ()
+  "Find the first non-ascii character from point onwards."
+  (interactive)
+  (let (point)
+    (save-excursion
+      (setq point
+            (catch 'non-ascii
+              (while (not (eobp))
+                (or (eq (char-charset (following-char))
+                        'ascii)
+                    (throw 'non-ascii (point)))
+                (forward-char 1)))))
+    (if point
+        (goto-char point)
+        (message "No non-ascii characters."))))
+(put 'downcase-region 'disabled nil)
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(custom-safe-themes
+   (quote
+	("d91ef4e714f05fff2070da7ca452980999f5361209e679ee988e3c432df24347" default)))
+ '(epg-gpg-program "/usr/local/MacGPG2/bin/gpg2")
+ '(flycheck-go-golint-executable "golangci-lint")
+ '(lsp-clients-go-server "/Users/arjen/go/bin/gopls")
+ '(lsp-clients-go-server-args (quote ("--trace" "--logfile=/Users/arjen/bingo.log")))
+ '(lsp-ui-doc-enable nil)
+ '(lsp-ui-peek-enable t)
+ '(lsp-ui-sideline-enable nil)
+ '(org-agenda-files
+   (quote
+	("~/Dropbox/Apps/MobileOrg/NOVI-medewerker.org" "~/Dropbox/Apps/MobileOrg/inbox.org" "~/Dropbox/Apps/MobileOrg/notes.org" "~/Dropbox/Apps/MobileOrg/gtd.org" "~/Dropbox/Apps/MobileOrg/_Goals.org" "~/Dropbox/Apps/MobileOrg/tickler.org" "~/Dropbox/Apps/MobileOrg/gcal-NOVI.org" "~/Dropbox/Apps/MobileOrg/gcal-Arjen.org")))
+ '(package-selected-packages
+   (quote
+	(flycheck-golangci-lint solarized-theme yasnippet-go java-snippets dap-mode lsp-java lsp-ui company-lsp lsp-mode treemacs org load-env-vars org-gcal org-journal minions moody ox-reveal org-bullets powerline mode-icons html-to-hiccup dockerfile-mode gotest go-eldoc go-snippets go-errcheck go-guru company-go flycheck-rust cargo racer emmet-mode web-mode clj-refactor cider restclient git-gutter magit-gitflow magit company clojure-snippets yasnippet rainbow-delimiters highlight-parentheses paredit-everywhere paredit s htmlize markdown-mode langtool request command-log-mode which-key use-package ivy-hydra guru-mode diminish counsel-projectile bm ace-window ace-jump-mode)))
+ '(safe-local-variable-values
+   (quote
+	((auto-fill-mode . t)
+	 (eval setq go-run-args
+		   (concat
+			(projectile-project-root)
+			"cmd/http-server/main.go"))
+	 (eval setq go-run-args
+		   (expand-file-name "cmd/http-server/main.go"))
+	 (eval set
+		   (go-run-args
+			(expand-file-name "cmd/http-server/main.go")))
+	 (go-run-args eval
+				  (expand-file-name "cmd/http-server/main.go"))
+	 (go-run-args expand-file-name "cmd/http-server/main.go")
+	 (go-run-args . "cmd/http-server/main.go")))))
+
+;; (custom-set-faces
+;;  ;; custom-set-faces was added by Custom.
+;;  ;; If you edit it by hand, you could mess it up, so be careful.
+;;  ;; Your init file should contain only one such instance.
+;;  ;; If there is more than one, they won't work right.
+;;  '(line-number-current-line ((t (:inherit default :background "#282635"))))
+;;  '(org-document-title ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro" :height 1.5 :underline nil))))
+;;  '(org-level-1 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro" :height 1.75))))
+;;  '(org-level-2 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro" :height 1.5))))
+;;  '(org-level-3 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro" :height 1.25))))
+;;  '(org-level-4 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro" :height 1.1))))
+;;  '(org-level-5 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro"))))
+;;  '(org-level-6 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro"))))
+;;  '(org-level-7 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro"))))
+;;  '(org-level-8 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro")))))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(line-number-current-line ((t (:inherit default :background "#282635"))))
+ '(org-document-title ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro" :height 1.5 :underline nil))))
+ '(org-level-1 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro" :height 1.75))))
+ '(org-level-2 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro" :height 1.5))))
+ '(org-level-3 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro" :height 1.25))))
+ '(org-level-4 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro" :height 1.1))))
+ '(org-level-5 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro"))))
+ '(org-level-6 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro"))))
+ '(org-level-7 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro"))))
+ '(org-level-8 ((t (:inherit default :weight bold :foreground "#657b83" :font "Source Sans Pro")))))

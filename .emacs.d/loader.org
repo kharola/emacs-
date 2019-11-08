@@ -1,0 +1,1517 @@
+#+TITLE: My GNU Emacs configuration
+#+STARTUP: indent
+#+OPTIONS: H:5 num:nil tags:nil toc:nil timestamps:t
+#+LAYOUT: post
+#+DESCRIPTION: Loading emacs configuration using org-babel
+#+TAGS: emacs
+#+CATEGORIES: editing
+
+* Introduction
+
+This is my version of an configuration file for GNU Emacs. I have been using GNU Emacs since 2000 when I was introduced to it by my mentor at Personify Inc. Sadly Personify Inc was victim to the dot com bust of 2001. I have been using GNU Emacs for everything since then though.
+
+You can find the latest version of this configuration at
+https://github.com/credmp/emacs-config or at https://gitlab.com/buildfunthings/emacs-config.
+
+I modeled this set of files based off of the emacs-starter-kit at https://github.com/eschulte/emacs24-starter-kit.
+
+#+BEGIN_SRC emacs-lisp
+  (setq user-full-name "Arjen Wiersma")
+  (setq user-mail-address "arjen@wiersma.org")
+#+END_SRC
+
+
+* A secure Emacs environment
+
+Great article why [[https://glyph.twistedmatrix.com/2015/11/editor-malware.html][Your editor is malware]]. The following basically sets up the configuration to adhere to the articles recommendations.
+
+#+BEGIN_SRC shell :exports none
+python -m pip install --user certifi
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+  ;;  (if (fboundp 'gnutls-available-p)
+  ;;      (fmakunbound 'gnutls-available-p))
+
+  (require 'cl)
+  (setq tls-checktrust t)
+
+  (setq python (or (executable-find "py.exe")
+                   (executable-find "python")
+                   ))
+
+  (let ((trustfile
+         (replace-regexp-in-string
+          "\\\\" "/"
+          (replace-regexp-in-string
+           "\n" ""
+           (shell-command-to-string (concat python " -m certifi"))))))
+    (setq tls-program
+          (list
+           (format "gnutls-cli%s --x509cafile %s -p %%p %%h"
+                   (if (eq window-system 'w32) ".exe" "") trustfile)))
+    (setq gnutls-verify-error t)
+    (setq gnutls-trustfiles (list trustfile)))
+
+  ;; Test the settings by using the following code snippet:
+  ;;  (let ((bad-hosts
+  ;;         (loop for bad
+  ;;               in `("https://wrong.host.badssl.com/"
+  ;;                    "https://self-signed.badssl.com/")
+  ;;               if (condition-case e
+  ;;                      (url-retrieve
+  ;;                       bad (lambda (retrieved) t))
+  ;;                    (error nil))
+  ;;               collect bad)))
+  ;;    (if bad-hosts
+  ;;        (error (format "tls misconfigured; retrieved %s ok" bad-hosts))
+  ;;      (url-retrieve "https://badssl.com"
+  ;;                    (lambda (retrieved) t))))
+#+END_SRC
+
+* Installing use-package
+** Setup
+
+GNU Emacs has a lot of packages that make things very easy for the
+user. The package management infrastructure makes it a breeze to
+install new packages and keep up-to-date with their development.
+
+There are several package archives available for GNU Emacs:
+
+- GNU
+- Marmalade
+- Melpa
+
+Each archive will write its files in a separate archive directory.
+
+#+BEGIN_SRC emacs-lisp
+  (require 'package)
+#+END_SRC
+
+Because the default setting for package-archives is to use the HTTP access to the GNU archive, I set the variable to `nil` before adding the HTTPS variants.
+
+#+name: credmp-package-infrastructure
+#+begin_src emacs-lisp
+
+  (defvar gnu '("gnu" . "https://elpa.gnu.org/packages/"))
+  (defvar melpa '("melpa" . "https://melpa.org/packages/"))
+  (defvar melpa-stable '("melpa-stable" . "https://stable.melpa.org/packages/"))
+  (defvar org-elpa '("org" . "http://orgmode.org/elpa/"))
+
+  ;; Add marmalade to package repos
+  (setq package-archives nil)
+  (add-to-list 'package-archives melpa-stable t)
+  (add-to-list 'package-archives melpa t)
+  (add-to-list 'package-archives gnu t)
+  (add-to-list 'package-archives org-elpa t)
+#+end_src
+
+Initialize the archive and refresh the contents in case there is no cached archive.
+
+#+BEGIN_SRC emacs-lisp
+  (package-initialize)
+
+  (unless (and (file-exists-p (concat init-dir "elpa/archives/gnu"))
+               (file-exists-p (concat init-dir "elpa/archives/melpa"))
+               (file-exists-p (concat init-dir "elpa/archives/melpa-stable")))
+    (package-refresh-contents))
+#+END_SRC
+
+At each load the package list will be evaluated and any missing
+packages will be installed. The packages-install function deals with
+this check and takes care of any loading of the packages.
+
+#+name: credmp-package-installer
+#+begin_src emacs-lisp
+  (defun packages-install (&rest packages)
+    (message "running packages-install")
+    (mapc (lambda (package)
+            (let ((name (car package))
+                  (repo (cdr package)))
+              (when (not (package-installed-p name))
+                (let ((package-archives (list repo)))
+                  (package-initialize)
+                  (package-install name)))))
+          packages)
+    (package-initialize)
+    (delete-other-windows))
+#+end_src
+
+** The package
+
+#+name: credmp-package-installer
+#+begin_src emacs-lisp
+  ;; Install extensions if they're missing
+  (defun init--install-packages ()
+    (message "Lets install some packages")
+    (packages-install
+     ;; Since use-package this is the only entry here
+     ;; ALWAYS try to use use-package!
+     (cons 'use-package melpa)
+     ))
+
+  (condition-case nil
+      (init--install-packages)
+    (error
+     (package-refresh-contents)
+     (init--install-packages)))
+#+end_src
+
+** Diminish modes
+
+#+begin_src emacs-lisp
+  (use-package diminish
+    :ensure t)
+#+end_src
+
+* Moving around
+
+Be sure to just ask for y/n instead of yes/no.
+
+#+BEGIN_SRC emacs-lisp
+(fset 'yes-or-no-p 'y-or-n-p)
+#+END_SRC
+
+Guru mode ensures you do not use the arrow keys. This is useful to really learn the navigation combos
+
+#+BEGIN_SRC emacs-lisp
+  (use-package guru-mode
+    :ensure t
+    :config
+    (add-hook 'prog-mode-hook 'guru-mode))
+#+END_SRC
+
+
+Bookmarks are very useful for quickly jumping around files.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package bm
+    :ensure t
+    :bind (("C-c =" . bm-toggle)
+           ("C-c [" . bm-previous)
+           ("C-c ]" . bm-next)))
+
+#+END_SRC
+
+Use the counsel and swiper packages to make the use of M-x and search a lot easier.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package counsel
+    :ensure t
+    :bind
+    (("M-x" . counsel-M-x)
+     ("M-y" . counsel-yank-pop)
+     :map ivy-minibuffer-map
+     ("M-y" . ivy-next-line)))
+
+  (use-package swiper
+    :pin melpa-stable
+    :diminish ivy-mode
+    :ensure t
+    :bind*
+    (("C-s" . swiper)
+     ("C-c C-r" . ivy-resume)
+     ("C-x C-f" . counsel-find-file)
+     ("C-c h f" . counsel-describe-function)
+     ("C-c h v" . counsel-describe-variable)
+     ("C-c i u" . counsel-unicode-char)
+     ("M-i" . counsel-imenu)
+     ("C-c g" . counsel-git)
+     ("C-c j" . counsel-git-grep)
+     ("C-c k" . counsel-ag)
+     ;;      ("C-c l" . scounsel-locate)
+     )
+    :config
+    (progn
+      (ivy-mode 1)
+      (setq ivy-use-virtual-buffers t)
+      (define-key read-expression-map (kbd "C-r") #'counsel-expression-history)
+      (ivy-set-actions
+       'counsel-find-file
+       '(("d" (lambda (x) (delete-file (expand-file-name x)))
+          "delete"
+          )))
+      (ivy-set-actions
+       'ivy-switch-buffer
+       '(("k"
+          (lambda (x)
+            (kill-buffer x)
+            (ivy--reset-state ivy-last))
+          "kill")
+         ("j"
+          ivy--switch-buffer-other-window-action
+          "other window")))))
+
+  (use-package counsel-projectile
+    :ensure t
+    :config
+    (counsel-projectile-mode))
+
+  (use-package ivy-hydra :ensure t)
+#+END_SRC
+
+From [[http://pragmaticemacs.com/emacs/dont-kill-buffer-kill-this-buffer-instead/][Pragmatic Emacs]] a more concise way to kill the buffer.
+
+#+begin_src emacs-lisp
+(global-set-key (kbd "C-x k") 'kill-this-buffer)
+#+end_src
+
+Mouse wheel scrolling can be quite annoying, lets fix it to scroll
+smoothly.
+
+#+begin_src emacs-lisp
+(setq mouse-wheel-scroll-amount '(1 ((shift) . 1) ((control) . nil)))
+(setq mouse-wheel-progressive-speed nil)
+#+end_src
+
+* Discover-ability
+
+#+BEGIN_SRC emacs-lisp
+  (use-package which-key
+    :ensure t
+    :diminish which-key-mode
+    :config
+    (which-key-mode))
+#+END_SRC
+
+#+begin_src emacs-lisp
+  (use-package projectile
+    :ensure t
+    :config
+    (add-hook 'prog-mode-hook 'projectile-mode))
+#+end_src
+* Environment
+
+#+begin_src emacs-lisp
+  (custom-set-variables '(epg-gpg-program  "/usr/local/MacGPG2/bin/gpg2"))
+#+end_src
+Setup the various paths that are on the system from which Emacs might need some executable.
+
+#+name: starter-kit-osX-workaround
+#+begin_src emacs-lisp
+  (if (or
+       (eq system-type 'darwin)
+       (eq system-type 'berkeley-unix))
+      (setq system-name (car (split-string system-name "\\."))))
+
+  (setenv "PATH" (concat "/Users/arjen/go/bin:/usr/local/bin:/usr/local/go/bin:" (getenv "PATH")))
+  (setenv "GOPATH" "/Users/arjen/go")
+  (push "/Users/arjen/go/bin" exec-path)
+  (push "/usr/local/bin" exec-path)
+  (push "/Users/arjen/go/bin/" exec-path)
+
+  ;; /usr/libexec/java_home
+  ;;(setenv "JAVA_HOME" "/Library/Java/JavaVirtualMachines/jdk1.8.0_05.jdk/Contents/Home")
+#+end_src
+
+** GUI
+
+- Turn off mouse interface early in startup to avoid momentary display.
+
+#+name: credmp-gui
+#+begin_src emacs-lisp
+  (menu-bar-mode -1)
+  (tool-bar-mode -1)
+  (scroll-bar-mode -1)
+#+end_src
+
+- change command to meta, and ignore option to use weird Norwegian
+keyboard
+
+#+name: credmp-keys
+#+begin_src emacs-lisp
+  (setq mac-option-modifier 'none)
+  (setq mac-command-modifier 'meta)
+  (setq ns-function-modifier 'hyper)
+#+end_src
+
+- Move to trash when deleting stuff and write backup files to own directory
+
+#+name: credmp-trash
+#+begin_src emacs-lisp
+  ;; Backup settings
+  (defvar --backup-directory (concat init-dir "backups"))
+
+  (if (not (file-exists-p --backup-directory))
+      (make-directory --backup-directory t))
+
+  (setq backup-directory-alist `(("." . ,--backup-directory)))
+  (setq make-backup-files t               ; backup of a file the first time it is saved.
+        backup-by-copying t               ; don't clobber symlinks
+        version-control t                 ; version numbers for backup files
+        delete-old-versions t             ; delete excess backup files silently
+        delete-by-moving-to-trash t
+        kept-old-versions 6               ; oldest versions to keep when a new numbered backup is made (default: 2)
+        kept-new-versions 9               ; newest versions to keep when a new numbered backup is made (default: 2)
+        auto-save-default t               ; auto-save every buffer that visits a file
+        auto-save-timeout 20              ; number of seconds idle time before auto-save (default: 30)
+        auto-save-interval 200            ; number of keystrokes between auto-saves (default: 300)
+        )
+    (setq delete-by-moving-to-trash t
+          trash-directory "~/.Trash/emacs")
+
+    (setq backup-directory-alist `(("." . ,(expand-file-name
+                                            (concat init-dir "backups")))))
+#+end_src
+
+- Don't open files from the workspace in a new frame
+
+#+name: credmp-trash
+#+begin_src emacs-lisp
+  (setq ns-pop-up-frames nil)
+#+end_src
+
+[[https://www.emacswiki.org/emacs/InteractiveSpell][Spellchecking in Emacs]]. Hunspell is widely used in text editor and even as the source of the spell check in MacOS X.
+
+Install using the Homebrew project:
+
+#+BEGIN_SRC shell :exports none
+  brew install hunspell
+#+END_SRC
+
+Install dictionaries from the [[https://addons.mozilla.org/en-us/firefox/language-tools/][Mozilla Add-on page]]. On Linux these will be available in your package manager as ~hunspell-nl~.
+
+#+name: credmp-spell
+#+begin_src emacs-lisp
+    (defun spell-buffer-dutch ()
+      (interactive)
+      (ispell-change-dictionary "nederlands")
+      (flyspell-buffer))
+
+    (defun spell-buffer-english ()
+      (interactive)
+      (ispell-change-dictionary "en_US")
+      (flyspell-buffer))
+
+    (use-package ispell
+      :config
+      (when (executable-find "hunspell")
+        (setq-default ispell-program-name "hunspell")
+        (setq ispell-really-hunspell t))
+
+      ;; (setq ispell-program-name "aspell"
+      ;;       ispell-extra-args '("--sug-mode=ultra"))
+      :bind (("C-c N" . spell-buffer-dutch)
+             ("C-c e" . spell-buffer-english)))
+#+end_src
+
+- Find out what face is used, so you can customize it :)
+
+#+name: credmp-spell
+#+begin_src emacs-lisp
+  ;;; what-face to determine the face at the current point
+  (defun what-face (pos)
+    (interactive "d")
+    (let ((face (or (get-char-property (point) 'read-face-name)
+                    (get-char-property (point) 'face))))
+      (if face (message "Face: %s" face) (message "No face at %d" pos))))
+#+end_src
+
+- Windows management
+
+#+name: credmp-window
+#+begin_src emacs-lisp
+  (use-package ace-window
+    :ensure t
+    :config
+    (global-set-key (kbd "C-x o") 'ace-window))
+
+  (use-package ace-jump-mode
+    :ensure t
+    :config
+    (define-key global-map (kbd "C-c SPC") 'ace-jump-mode))
+#+end_src
+
+- Misc stuff
+
+#+begin_src emacs-lisp
+  (setq inhibit-startup-message t)
+  ;;  (global-linum-mode)
+  (global-hl-line-mode +1)
+
+  (custom-set-faces
+   '(line-number-current-line ((t (:inherit default :background "#282635")))))
+
+  (defun iwb ()
+    "indent whole buffer"
+    (interactive)
+    (delete-trailing-whitespace)
+    (indent-region (point-min) (point-max) nil)
+    (untabify (point-min) (point-max)))
+
+  (global-set-key (kbd "C-c n") 'iwb)
+
+  (electric-pair-mode t)
+#+end_src
+
+* Look and feel
+
+#+name: credmp-package-installer
+#+begin_src emacs-lisp
+  (when (window-system)
+    ;;(load "~/.emacs.d/arc-dark-theme/arc-dark-theme.el")
+    (load-theme 'solarized-light t)
+    )
+
+  (when (window-system)
+    (set-default-font "Hack-14"))
+#+end_src
+
+#+BEGIN_SRC emacs-lisp
+  (use-package command-log-mode
+    :ensure t)
+
+  (defun live-coding ()
+    (interactive)
+    (set-face-attribute 'default nil :font "Hack-18")
+    (add-hook 'prog-mode-hook 'command-log-mode)
+    ;;(add-hook 'prog-mode-hook (lambda () (focus-mode 1)))
+    )
+
+  (defun normal-coding ()
+    (interactive)
+    (set-face-attribute 'default nil :font "Hack-14")
+    (add-hook 'prog-mode-hook 'command-log-mode)
+    ;;(add-hook 'prog-mode-hook (lambda () (focus-mode 1)))
+    )
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+   (eval-after-load "org-indent" '(diminish 'org-indent-mode))
+#+END_SRC
+
+Have the ability to use some amazing font icons
+
+#+BEGIN_SRC emacs-lisp
+;;   (use-package all-the-icons
+;;     :ensure t)
+#+END_SRC
+
+Be sure to install the fonts from [[https://github.com/domtronn/all-the-icons.el/tree/master/fonts][the github repo]].
+
+Now, lets make sure we are not `ding`-ed all the time.
+
+#+BEGIN_SRC emacs-lisp
+  ;; http://stackoverflow.com/questions/11679700/emacs-disable-beep-when-trying-to-move-beyond-the-end-of-the-document
+  (defun my-bell-function ())
+
+  (setq ring-bell-function 'my-bell-function)
+  (setq visible-bell nil)
+#+END_SRC
+
+* Writing
+
+** Publishing
+
+Based on the work describe [[https://medium.com/@lakshminp/publishing-a-book-using-org-mode-9e817a56d144#.90pg5dl66][here]].
+
+Support to make an external call to LeanPub.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package request
+    :ensure t)
+#+END_SRC
+
+You will need the ox-leanpub library from GitHub.
+
+#+BEGIN_SRC shell :exports none
+  wget https://raw.githubusercontent.com/juanre/ox-leanpub/master/ox-leanpub.el
+#+END_SRC
+
+Now for the leanpub-export.
+
+#+BEGIN_SRC emacs-lisp
+  ;;(add-to-list 'load-path (expand-file-name (concat init-dir "ox-leanpub")))
+  ;;(load-library "ox-leanpub")
+  (add-to-list 'load-path (expand-file-name (concat init-dir "ox-ghost")))
+  (load-library "ox-ghost")
+  ;;; http://www.lakshminp.com/publishing-book-using-org-mode
+
+  ;;(defun leanpub-export ()
+  ;;  "Export buffer to a Leanpub book."
+  ;;  (interactive)
+  ;;  (if (file-exists-p "./Book.txt")
+  ;;      (delete-file "./Book.txt"))
+  ;;  (if (file-exists-p "./Sample.txt")
+  ;;      (delete-file "./Sample.txt"))
+  ;;  (org-map-entries
+  ;;   (lambda ()
+  ;;     (let* ((level (nth 1 (org-heading-components)))
+  ;;            (tags (org-get-tags))
+  ;;            (title (or (nth 4 (org-heading-components)) ""))
+  ;;            (book-slug (org-entry-get (point) "TITLE"))
+  ;;            (filename
+  ;;             (or (org-entry-get (point) "EXPORT_FILE_NAME") (concat (replace-regexp-in-string " " "-" (downcase title)) ".md"))))
+  ;;       (when (= level 1) ;; export only first level entries
+  ;;         ;; add to Sample book if "sample" tag is found.
+  ;;         (when (or (member "sample" tags)
+  ;;                   ;;(string-prefix-p "frontmatter" filename) (string-prefix-p "mainmatter" filename)
+  ;;                   )
+  ;;           (append-to-file (concat filename "\n\n") nil "./Sample.txt"))
+  ;;         (append-to-file (concat filename "\n\n") nil "./Book.txt")
+  ;;         ;; set filename only if the property is missing
+  ;;         (or (org-entry-get (point) "EXPORT_FILE_NAME")  (org-entry-put (point) "EXPORT_FILE_NAME" filename))
+  ;;         (org-leanpub-export-to-markdown nil 1 nil)))) "-noexport")
+  ;;  (org-save-all-org-buffers)
+  ;;  nil
+  ;;  nil)
+  ;;
+  ;;(require 'request)
+  ;;
+  ;;(defun leanpub-preview ()
+  ;;  "Generate a preview of your book @ Leanpub."
+  ;;  (interactive)
+  ;;  (request
+  ;;   "https://leanpub.com/clojure-on-the-server/preview.json" ;; or better yet, get the book slug from the buffer
+  ;;   :type "POST"                                             ;; and construct the URL
+  ;;   :data '(("api_key" . ""))
+  ;;   :parser 'json-read
+  ;;   :success (function*
+  ;;             (lambda (&key data &allow-other-keys)
+  ;;               (message "Preview generation queued at leanpub.com.")))))
+#+END_SRC
+
+
+** Grammar checking
+
+I want to write decent English and Dutch. To that end I do not only need a decent spell checker but also a grammar checker. [[https://languagetool.org/][LanguageTool]] provides a language independent mechanism to check grammar. Get the desktop (offline) version from the website.
+
+#+begin_src 
+wget https://languagetool.org/download/LanguageTool-4.4.zip
+unzip LanguageTool-4.4.zip
+#+end_src
+
+Then include the ~langtool~ package. This process checks every word in the buffer and does not consider things like code blocks, so only use on actual text files or perhaps narrow the region?
+
+#+begin_src emacs-lisp
+  (use-package langtool
+    :ensure t
+    :config (setq langtool-language-tool-server-jar (concat (getenv "HOME") "/.emacs.d/LanguageTool-4.4/languagetool-server.jar"))
+    :bind (("\C-x4w" . langtool-check)
+           ("\C-x4W" . langtool-check-done)
+           ("\C-x4l" . langtool-switch-default-language)
+           ("\C-x44" . langtool-show-message-at-point)
+           ("\C-x4c" . langtool-correct-buffer)))
+#+end_src
+** Word wrapping
+
+Please wrap text around when in text-modes. Also enable flyspell to catch nasty writing errors.
+
+#+BEGIN_SRC emacs-lisp
+  (dolist (hook '(text-mode-hook))
+    (add-hook hook (lambda ()
+                     (flyspell-mode 1)
+                     (visual-line-mode 1)
+                     )))
+#+END_SRC
+
+** Markdown support
+
+Markdown is a great way to write documentation, not as good as org-mode of course, but generally accepted as a standard.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package markdown-mode
+    :ensure t)
+#+END_SRC
+
+** HTMLize buffers
+
+When exporting documents to HTML documents, such as code fragments, we need to htmlize.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package htmlize
+    :ensure t)
+#+END_SRC
+
+** Exports
+Export ORG code fragments with a particular theme.
+
+#+BEGIN_SRC emacs-lisp
+  (defun my/with-theme (theme fn &rest args)
+    (let ((current-themes custom-enabled-themes))
+      (mapcar #'disable-theme custom-enabled-themes)
+      (load-theme theme t)
+      (let ((result (apply fn args)))
+        (mapcar #'disable-theme custom-enabled-themes)
+        (mapcar (lambda (theme) (load-theme theme t)) current-themes)
+        result)))
+
+  ;; (advice-add #'org-export-to-file :around (apply-partially #'my/with-theme 'arjen-grey-theme))
+  ;; (advice-add #'org-export-to-buffer :around (apply-partially #'my/with-theme 'arjen-grey-theme))
+
+#+END_SRC
+
+
+* Programming
+
+** General programming
+
+As I write a lot of Lisp like code, either in GNU Emacs or in Clojure
+I like to have my environment setup for these languages. This is
+greatly supported by Paredit. [[http://danmidwood.com/content/2014/11/21/animated-paredit.html][Dan Midwood]] has a great guide to using
+paredit.
+
+The structured editing of paredit is usefull in a LOT of languages, as
+long as there are parenthesis, brackets or quotes.
+
+*** Utilities
+
+String manipulation routines for emacs lisp
+
+#+BEGIN_SRC emacs-lisp
+  (use-package s
+    :ensure t)
+#+END_SRC
+
+Hydras are the most awesome thing in the world. Check out [[https://github.com/abo-abo/hydra][the project page]] for some great examples.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package hydra
+    :ensure t)
+#+END_SRC
+
+*** Code Folding
+
+#+BEGIN_SRC emacs-lisp
+  (use-package hideshow
+    :ensure t
+    :bind (("C->" . my-toggle-hideshow-all)
+           ("C-<" . hs-hide-level)
+           ("C-;" . hs-toggle-hiding))
+    :config
+    ;; Hide the comments too when you do a 'hs-hide-all'
+    (setq hs-hide-comments nil)
+    ;; Set whether isearch opens folded comments, code, or both
+    ;; where x is code, comments, t (both), or nil (neither)
+    (setq hs-isearch-open t)
+    ;; Add more here
+
+
+    (setq hs-set-up-overlay
+          (defun my-display-code-line-counts (ov)
+            (when (eq 'code (overlay-get ov 'hs))
+              (overlay-put ov 'display
+                           (propertize
+                            (format " ... <%d>"
+                                    (count-lines (overlay-start ov)
+                                                 (overlay-end ov)))
+                            'face 'font-lock-type-face)))))
+
+    (defvar my-hs-hide nil "Current state of hideshow for toggling all.")
+         ;;;###autoload
+    (defun my-toggle-hideshow-all () "Toggle hideshow all."
+           (interactive)
+           (setq my-hs-hide (not my-hs-hide))
+           (if my-hs-hide
+               (hs-hide-all)
+             (hs-show-all)))
+
+    (add-hook 'prog-mode-hook (lambda ()
+                                (hs-minor-mode 1)
+                                ))
+    (add-hook 'clojure-mode-hook (lambda ()
+                                (hs-minor-mode 1)
+                                ))
+    )
+#+END_SRC
+
+*** Look and feel
+
+Enable the prettify symbols mode. It will translate (fn) to the lambda
+sign.
+
+#+BEGIN_SRC emacs-lisp
+  (global-prettify-symbols-mode 1)
+#+END_SRC
+
+*** LISP Editing
+
+#+name: credmp-lisp-editing
+#+BEGIN_SRC emacs-lisp
+  (use-package paredit
+    :ensure t
+    :diminish paredit-mode
+    :config
+    (add-hook 'emacs-lisp-mode-hook       #'enable-paredit-mode)
+    (add-hook 'eval-expression-minibuffer-setup-hook #'enable-paredit-mode)
+    (add-hook 'ielm-mode-hook             #'enable-paredit-mode)
+    (add-hook 'lisp-mode-hook             #'enable-paredit-mode)
+    (add-hook 'lisp-interaction-mode-hook #'enable-paredit-mode)
+    (add-hook 'scheme-mode-hook           #'enable-paredit-mode)
+    :bind (("C-c d" . paredit-forward-down))
+    )
+
+  ;; Ensure paredit is used EVERYWHERE!
+  (use-package paredit-everywhere
+    :ensure t
+    :diminish paredit-everywhere-mode
+    :config
+    (add-hook 'list-mode-hook #'paredit-everywhere-mode))
+
+  (use-package highlight-parentheses
+    :ensure t
+    :diminish highlight-parentheses-mode
+    :config
+    (add-hook 'emacs-lisp-mode-hook
+              (lambda()
+                (highlight-parentheses-mode)
+                )))
+
+  (use-package rainbow-delimiters
+    :ensure t
+    :config
+    (add-hook 'lisp-mode-hook
+              (lambda()
+                (rainbow-delimiters-mode)
+                )))
+
+  (global-highlight-parentheses-mode)
+#+END_SRC
+
+*** Snippets
+
+#+BEGIN_SRC emacs-lisp
+  (use-package yasnippet
+    :ensure t
+    :diminish yas
+    :config
+    (yas/global-mode 1)
+    (add-to-list 'yas-snippet-dirs (concat init-dir "snippets")))
+
+  (use-package clojure-snippets
+    :ensure t)
+#+END_SRC
+
+*** Auto completion
+
+#+BEGIN_SRC emacs-lisp
+  (use-package company
+    :ensure t
+    :bind (("C-c /". company-complete))
+    :config
+    (global-company-mode)
+    )
+#+END_SRC
+
+*** Version Control
+Magit is the only thing you need when it comes to Version Control (Git)
+
+#+BEGIN_SRC emacs-lisp
+  (use-package magit
+    :ensure t
+    :bind (("C-c m" . magit-status)))
+
+  (use-package magit-gitflow
+    :ensure t
+    :config
+    (add-hook 'magit-mode-hook 'turn-on-magit-gitflow))
+#+END_SRC
+
+Display the buffer state in the fringe.
+
+#+begin_src emacs-lisp
+  (use-package git-gutter
+    :ensure t
+    :config
+    (global-git-gutter-mode +1))
+#+end_src
+
+*** REST support
+
+#+BEGIN_SRC emacs-lisp
+  (use-package restclient
+    :ensure t)
+#+END_SRC
+
+** Clojure
+
+The clojure ecosystem for GNU Emacs consists out of CIDER and bunch of
+supporting modules.
+
+*** CIDER
+
+#+name: credmp-clojure
+#+begin_src emacs-lisp
+  (use-package cider
+    :ensure t
+    :pin melpa-stable
+
+    :config
+    (add-hook 'cider-repl-mode-hook #'company-mode)
+    (add-hook 'cider-mode-hook #'company-mode)
+    (add-hook 'cider-mode-hook #'eldoc-mode)
+;;    (add-hook 'cider-mode-hook #'cider-hydra-mode)
+    (add-hook 'clojure-mode-hook #'paredit-mode)
+    (setq cider-repl-use-pretty-printing t)
+    (setq cider-repl-display-help-banner nil)
+    ;;    (setq cider-cljs-lein-repl "(do (use 'figwheel-sidecar.repl-api) (start-figwheel!) (cljs-repl))")
+
+    :bind (("M-r" . cider-namespace-refresh)
+           ("C-c r" . cider-repl-reset)
+           ("C-c ." . cider-reset-test-run-tests))
+    )
+
+  (use-package clj-refactor
+    :ensure t
+    :config
+    (add-hook 'clojure-mode-hook (lambda ()
+                                   (clj-refactor-mode 1)
+                                   ;; insert keybinding setup here
+                                   ))
+    (cljr-add-keybindings-with-prefix "C-c C-m")
+    (setq cljr-warn-on-eval nil)
+    :bind ("C-c '" . hydra-cljr-help-menu/body)
+    )
+#+end_src
+
+*** Hydras
+
+Retrieve the Cider-Hydra package from [[https://github.com/clojure-emacs/cider-hydra/blob/master/cider-hydra.el][GitHub]].
+
+#+BEGIN_SRC shell :exports none
+  wget https://raw.githubusercontent.com/clojure-emacs/cider-hydra/master/cider-hydra.el
+#+END_SRC
+
+
+#+BEGIN_SRC emacs-lisp
+;;  (load-library (concat init-dir "cider-hydra.el"))
+;;  (require 'cider-hydra)
+#+END_SRC
+
+** Web editing
+
+The web-mode is particularly good for editing HTML and Javascript files.
+
+#+name: credmp-package-web
+#+begin_src emacs-lisp
+  (use-package web-mode
+    :ensure t
+    :config
+    (add-to-list 'auto-mode-alist '("\\.phtml\\'" . web-mode))
+    (add-to-list 'auto-mode-alist '("\\.tpl\\.php\\'" . web-mode))
+    (add-to-list 'auto-mode-alist '("\\.jsp\\'" . web-mode))
+    (add-to-list 'auto-mode-alist '("\\.as[cp]x\\'" . web-mode))
+    (add-to-list 'auto-mode-alist '("\\.erb\\'" . web-mode))
+    (add-to-list 'auto-mode-alist '("\\.mustache\\'" . web-mode))
+    (add-to-list 'auto-mode-alist '("\\.djhtml\\'" . web-mode))
+    (add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
+    (add-to-list 'auto-mode-alist '("\\.xhtml?\\'" . web-mode))
+
+    (defun my-web-mode-hook ()
+      "Hooks for Web mode."
+      (setq web-mode-enable-auto-closing t)
+      (setq web-mode-enable-auto-quoting t)
+      (setq web-mode-markup-indent-offset 2))
+
+    (add-hook 'web-mode-hook  'my-web-mode-hook))
+
+  (use-package less-css-mode
+    :ensure t)
+
+  (use-package emmet-mode
+    :ensure t
+    :config
+    (add-hook 'clojure-mode-hook 'emmet-mode))
+#+end_src
+
+** Rust
+
+#+begin_src emacs-lisp
+  (use-package racer
+    :ensure t
+    :config
+    (add-hook 'racer-mode-hook #'company-mode)
+    (setq company-tooltip-align-annotations t)
+    (setq racer-rust-src-path "/home/arjen/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/src"))
+
+  (use-package rust-mode
+    :ensure t
+    :config
+    (add-hook 'rust-mode-hook #'racer-mode)
+    (add-hook 'racer-mode-hook #'eldoc-mode)
+    (setq rust-format-on-save t))
+
+  (use-package cargo
+    :ensure t
+    :config
+    (setq compilation-scroll-output t)
+    (add-hook 'rust-mode-hook 'cargo-minor-mode))
+
+  (use-package flycheck-rust
+    :ensure t
+    :config
+    (add-hook 'flycheck-mode-hook #'flycheck-rust-setup)
+    (add-hook 'rust-mode-hook 'flycheck-mode))
+#+end_src
+
+** Go
+
+Go code helpers. [[https://tleyden.github.io/blog/2014/05/22/configure-emacs-as-a-go-editor-from-scratch/][see also]]
+
+#+begin_src shell :tangle no
+go get -u github.com/nsf/gocode
+go get -u github.com/rogpeppe/godef
+go get -u golang.org/x/tools/cmd/guru
+go get -u golang.org/x/tools/cmd/goimports
+#+end_src
+
+Completion
+#+begin_src emacs-lisp
+
+  (use-package company-go
+    :ensure t
+    :config
+    (setq company-tooltip-limit 20)                      ; bigger popup window
+    (setq company-idle-delay .3)                         ; decrease delay before autocompletion popup shows
+    (setq company-echo-delay 0)                          ; remove annoying blinking
+    (setq company-begin-commands '(self-insert-command)) ; start autocompletion only after typing
+    (add-hook 'go-mode-hook (lambda ()
+                              (set (make-local-variable 'company-backends) '(company-go))
+                              (company-mode))))
+#+end_src
+
+Go uses tabs, so lets set the indent to a sane mode
+
+#+begin_src emacs-lisp
+(setq-default tab-width 4)
+#+end_src
+
+Packages that you need for a nice Go setup
+
+#+begin_src emacs-lisp
+  (use-package go-mode
+    :ensure t
+    :bind (("C-c t t" . go-test-current-test)
+           ("C-c t p" . go-test-current-project)
+           ("C-c t c" . go-test-current-coverage)
+           ("C-c t f" . go-test-current-file))
+    :config
+    (setq gofmt-command "goimports")
+    (add-hook 'before-save-hook 'gofmt-before-save))
+
+  (use-package go-guru
+    :ensure t)
+
+  (use-package go-errcheck
+    :ensure t)
+
+  ;; Yasnippets
+  (use-package go-snippets
+    :ensure t)
+
+  ;; eldoc integration
+  (use-package go-eldoc
+    :ensure t)
+
+  ;; (use-package gocode
+  ;;   :ensure t)
+
+  ;; (use-package godef
+  ;;   :ensure t)
+
+  (use-package gotest
+    :ensure t)
+
+  (use-package flycheck-golangci-lint
+    :ensure t
+    :hook (go-mode . flycheck-golangci-lint-setup))
+#+end_src
+
+** Java
+
+#+begin_src emacs-lisp
+(use-package treemacs :ensure t)
+(use-package lsp-mode :ensure t)
+(use-package company-lsp :ensure t)
+(use-package lsp-ui :ensure t)
+(use-package java-snippets :ensure t)
+(use-package lsp-java :ensure t :after lsp
+  :config (add-hook 'java-mode-hook 'lsp))
+
+(use-package dap-mode
+  :ensure t :after lsp-mode
+  :config
+  (dap-mode t)
+  (dap-ui-mode t))
+
+(use-package dap-java :after (lsp-java))
+(use-package lsp-java-treemacs :after (treemacs))
+#+end_src
+* Docker
+
+#+begin_src emacs-lisp
+  (use-package dockerfile-mode
+    :ensure t)
+#+end_src
+
+* Experiments
+
+The following are snippets, functions or other temporary code that I have found or created but that do not have a solid place in my workflow yet.
+
+
+#+BEGIN_SRC emacs-lisp
+  ;; helper functions
+  (defun nuke-all-buffers ()
+    (interactive)
+    (mapcar 'kill-buffer (buffer-list))
+    (delete-other-windows))
+
+  (setq mac-right-alternate-modifier nil)
+
+  ;; Customize EWW for dark background
+  (setq shr-color-visible-luminance-min 80)
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+  (use-package html-to-hiccup
+    :ensure t
+    :config
+    ;;(define-key clojure-mode-map (kbd "H-h") 'html-to-hiccup-convert-region)
+    )
+#+END_SRC
+
+;; Experiments
+
+#+begin_src emacs-lisp
+  (defun fc-insert-date (prefix)
+    "Insert the current date. With prefix-argument, use ISO format. With
+  two prefix arguments, write out the day and month name."
+    (interactive "P")
+    (let ((format (cond
+                   ((not prefix) "%Y-%m-%dT%H:%M:%S %Z")
+                   ((equal prefix '(4)) "%d.%m.%Y")
+                   (t "%A, %d. %B %Y")))
+          (system-time-locale "nl_NL"))
+      (insert (format-time-string format))))
+#+end_src
+
+** Mode line
+
+
+#+BEGIN_SRC emacs-lisp
+;;  (use-package spaceline
+;;    :ensure t
+;;    :init
+;;    (setq powerline-default-separator 'utf-8)
+;;
+;;    :config
+;;    (require 'spaceline-config)
+;;    (spaceline-spacemacs-theme)
+;;    )
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+  ;; Reference: https://github.com/hlissner/.emacs.d/blob/master/core/core-modeline.el
+
+  (use-package f
+    :ensure t)
+
+
+  (use-package moody
+    :ensure t
+    :config
+    (setq x-underline-at-descent-line t)
+    (moody-replace-mode-line-buffer-identification)
+    (moody-replace-vc-mode))
+
+  (use-package minions
+    :ensure t
+    :config (minions-mode 1))
+#+END_SRC
+
+* Org Mode
+
+Formatting found on [[http://howardism.org/Technical/Emacs/orgmode-wordprocessor.html][Howardism]]. Also [[https://diego.codes/][Diego]] has some great stuff for
+blogging/making a website using Emacs.
+
+** The org package
+#+begin_src emacs-lisp
+  (use-package org
+    :ensure t)
+
+  (setq org-catch-invisible-edits 'show-and-error)
+#+end_src
+
+** Habits
+
+#+begin_src emacs-lisp
+  (require 'org-habit)
+
+  (add-to-list 'org-modules 'org-habit)
+#+end_src
+
+** Editing Org files
+
+#+begin_src emacs-lisp
+  (setq org-hide-emphasis-markers t)
+
+  (font-lock-add-keywords 'org-mode
+                          '(("^ +\\([-*]\\) "
+                             (0 (prog1 () (compose-region (match-beginning 1) (match-end 1) "•"))))))
+
+  (setq org-link-frame-setup
+        (quote
+         ((vm . vm-visit-folder-other-frame)
+          (vm-imap . vm-visit-imap-folder-other-frame)
+          (gnus . org-gnus-no-new-news)
+          (file . find-file)
+          (wl . wl-other-frame))))
+
+
+  (when (window-system)
+    (let* ((variable-tuple (cond ((x-list-fonts "Source Sans Pro") '(:font "Source Sans Pro"))
+                                 ((x-list-fonts "Lucida Grande")   '(:font "Lucida Grande"))
+                                 ((x-list-fonts "Verdana")         '(:font "Verdana"))
+                                 ((x-family-fonts "Sans Serif")    '(:family "Sans Serif"))
+                                 (nil (warn "Cannot find a Sans Serif Font.  Install Source Sans Pro."))))
+           (base-font-color     (face-foreground 'default nil 'default))
+           (headline           `(:inherit default :weight bold :foreground ,base-font-color)))
+
+      (custom-theme-set-faces 'user
+                              `(org-level-8 ((t (,@headline ,@variable-tuple))))
+                              `(org-level-7 ((t (,@headline ,@variable-tuple))))
+                              `(org-level-6 ((t (,@headline ,@variable-tuple))))
+                              `(org-level-5 ((t (,@headline ,@variable-tuple))))
+                              `(org-level-4 ((t (,@headline ,@variable-tuple :height 1.1))))
+                              `(org-level-3 ((t (,@headline ,@variable-tuple :height 1.25))))
+                              `(org-level-2 ((t (,@headline ,@variable-tuple :height 1.5))))
+                              `(org-level-1 ((t (,@headline ,@variable-tuple :height 1.75))))
+                              `(org-document-title ((t (,@headline ,@variable-tuple :height 1.5 :underline nil))))))
+    )
+
+#+end_src
+
+
+** Agenda and capture templates
+
+#+begin_src emacs-lisp
+  (setq org-agenda-files '("~/Dropbox/Apps/MobileOrg/inbox.org"
+                           "~/Dropbox/Apps/MobileOrg/notes.org"
+                           "~/Dropbox/Apps/MobileOrg/gtd.org"
+                           "~/Dropbox/Apps/MobileOrg/_Goals.org"
+                           "~/Dropbox/Apps/MobileOrg/tickler.org"
+                           "~/Dropbox/Apps/MobileOrg/gcal-NOVI.org"
+                           "~/Dropbox/Apps/MobileOrg/gcal-Arjen.org"))
+
+  (setq org-capture-templates '(("t" "Todo [inbox]" entry
+                                 (file+headline "~/Dropbox/Apps/MobileOrg/inbox.org" "Tasks")
+                                 "* TODO %i%?")
+                                ("T" "Tickler" entry
+                                 (file+headline "~/Dropbox/Apps/MobileOrg/tickler.org" "Tickler")
+                                 "* %i%? \n %U")
+                                ("e" "email" entry (file+headline "~/Dropbox/Apps/MobileOrg/inbox.org" "Tasks from Email")
+                                 "* TODO [#A] %?\nSCHEDULED: %(org-insert-time-stamp (org-read-date nil t \"+0d\"))\n%a\n")))
+
+  (setq org-refile-targets '(("~/Dropbox/Apps/MobileOrg/notes.org" :level . 2)
+                             ("~/Dropbox/Apps/MobileOrg/tickler.org" :maxlevel . 2)))
+
+  (setq org-agenda-custom-commands
+        '(("b" "Build fun things" tags-todo "@bft"
+           ((org-agenda-overriding-header "BuildFunThings")
+            (org-agenda-skip-function #'my-org-agenda-skip-all-siblings-but-first)))))
+
+  (defun my-org-agenda-skip-all-siblings-but-first ()
+    "Skip all but the first non-done entry."
+    (let (should-skip-entry)
+      (unless (org-current-is-todo)
+        (setq should-skip-entry t))
+      (save-excursion
+        (while (and (not should-skip-entry) (org-goto-sibling t))
+          (when (org-current-is-todo)
+            (setq should-skip-entry t))))
+      (when should-skip-entry
+        (or (outline-next-heading)
+            (goto-char (point-max))))))
+
+  (defun org-current-is-todo ()
+    (string= "TODO" (org-get-todo-state)))
+#+end_src
+
+** Keybindings
+
+#+begin_src emacs-lisp
+  (global-set-key "\C-cl" 'org-store-link)
+  (global-set-key "\C-ca" 'org-agenda)
+  (global-set-key "\C-cc" 'org-capture)
+  (global-set-key "\C-cb" 'org-iswitchb)
+#+end_src
+
+** Publishing
+
+*** Packages
+
+#+begin_src emacs-lisp
+  (require 'ox-html)
+  (require 'ox-publish)
+
+
+  (use-package htmlize
+    :ensure t)
+
+  (add-to-list 'load-path (expand-file-name (concat init-dir "ox-rss")))
+  (require 'ox-rss)
+
+#+end_src
+
+A first attempt at a website structure with org-mode. The idea is to build my tutorial website, buildfunthings.com, from these static files.
+
+- [[https://www.brautaset.org/articles/2017/blogging-with-org-mode.html][Reference 1]]
+
+*** Variables
+
+#+begin_src emacs-lisp
+  (setq org-mode-websrc-directory "~/Dropbox/Apps/MobileOrg/website")
+  (setq org-mode-publishing-directory "~/Dropbox/Apps/MobileOrg/website/_site")
+
+  (setq org-html-htmlize-output-type 'css)
+
+#+end_src
+
+*** Support functions
+
+#+begin_src emacs-lisp
+  (defun my-org-export-format-drawer (name content)
+    (concat "<div class=\"drawer " (downcase name) "\">\n"
+            "<h6>" (capitalize name) "</h6>\n"
+            content
+            "\n</div>"))
+  (setq org-html-format-drawer-function 'my-org-export-format-drawer)
+
+  (defun org-mode-blog-preamble (options)
+    "The function that creates the preamble top section for the blog.
+              OPTIONS contains the property list from the org-mode export."
+    (let ((base-directory (plist-get options :base-directory)))
+      (org-babel-with-temp-filebuffer (expand-file-name "top-bar.html" base-directory) (buffer-string))))
+
+  (defun org-mode-blog-postamble (options)
+    "The function that creates the postamble, or bottom section for the blog.
+              OPTIONS contains the property list from the org-mode export."
+    (let ((base-directory (plist-get options :base-directory)))
+      (org-babel-with-temp-filebuffer (expand-file-name "bottom.html" base-directory) (buffer-string))))
+
+  (defun org-mode-blog-prepare (options)
+    "`index.org' should always be exported so touch the file before publishing."
+    (let* (
+           (buffer (find-file-noselect (expand-file-name "index.org" org-mode-websrc-directory) t)))
+      (with-current-buffer buffer
+        (set-buffer-modified-p t)
+        (save-buffer 0))
+      (kill-buffer buffer)))
+#+end_src
+
+*** Publishing configuration
+
+#+begin_src emacs-lisp
+  ;; Options: http://orgmode.org/manual/Publishing-options.html
+  (setq org-publish-project-alist
+        `(("all"
+           :components ("site-content" "site-rss" "site-static"))
+
+          ("site-content"
+           :base-directory ,org-mode-websrc-directory
+           :base-extension "org"
+           :publishing-directory ,org-mode-publishing-directory
+           :recursive t
+           :publishing-function org-html-publish-to-html
+           :preparation-function org-mode-blog-prepare
+
+           :html-head "<link rel=\"stylesheet\" href=\"/css/style.css\" type=\"text/css\" />
+  <link rel=\"stylesheet\" href=\"/css/all.min.css\" type=\"text/css\" />"
+
+           :headline-levels      4
+           :auto-preamble        t
+           :auto-postamble       nil
+           :auto-sitemap         t
+           :sitemap-title        "Build Fun Things"
+           :section-numbers      nil
+           :table-of-contents    t
+           :with-toc             nil
+           :with-author          nil
+           :with-creator         nil
+           :with-tags            nil
+           :with-smart-quotes    nil
+
+           :html-doctype         "html5"
+           :html-html5-fancy     t
+           :html-preamble        org-mode-blog-preamble
+           :html-postamble       org-mode-blog-postamble
+
+           :html-head-include-default-style nil
+           :html-head-include-scripts nil
+           )
+
+          ("site-rss"
+           :base-directory ,org-mode-websrc-directory
+           :base-extension "org"
+           :publishing-directory ,org-mode-publishing-directory
+           :recursive t
+           :publishing-function (org-rss-publish-to-rss)
+           :html-link-home "https://www.buildfunthings.com"
+           :html-link-use-abs-url t
+           :exclude ".*"
+           :include ("feed.org")
+           )
+          ("site-static"
+           :base-directory       ,org-mode-websrc-directory
+           :base-extension       "css\\|js\\|png\\|jpg\\|gif\\|pdf\\|ttf\\|woff\\|woff2\\|ico\\|webmanifest"
+           :publishing-directory ,org-mode-publishing-directory
+           :exclude "_site"
+           :recursive            t
+           :publishing-function  org-publish-attachment
+           )
+          ))
+#+end_src
+
+*** org-reveal
+
+ox-reveal is broken in org 9.2 due to the template mechanism change.
+
+#+begin_src emacs-lisp
+  ;; (use-package ox-reveal
+  ;;   :ensure t
+  ;;   :config
+  ;;   (setq org-reveal-root "file:///home/arjen/Documents/BuildFunThings/Security/reveal.js-3.5.0/js/reveal.js"))
+#+end_src
+
+** Journalling
+
+#+begin_src emacs-lisp
+    (use-package org-journal
+      :ensure t
+      :config (setq org-journal-dir "~/Dropbox/Apps/MobileOrg/journal"))
+#+end_src
+
+* Email
+
+#+begin_src emacs-lisp
+  (setq mu4e-drafts-folder "/Personal/Drafts")
+  (setq mu4e-sent-folder   "/Personal/Sent Items")
+  (setq mu4e-trash-folder  "/Personal/Trash")
+
+  ;; this is where the install procedure above puts your mu4e
+  (add-to-list 'load-path "/usr/local/Cellar/mu/1.0_1/share/emacs/site-lisp/mu/mu4e")
+
+  (require 'mu4e)
+
+  ;; path to our Maildir directory
+  (setq mu4e-maildir "~/Maildir")
+
+  (setq mu4e-get-mail-command "mbsync -a")
+  (setq mu4e-view-show-images t)
+  (setq mu4e-html2text-command "w3m -dump -T text/html")
+
+  ;; Prevent duplicate UIDs when moving files around
+  (setq mu4e-change-filenames-when-moving t)
+
+  ;; This enables unicode chars to be used for things like flags in the message index screens.
+  ;; I've disabled it because the font I am using doesn't support this very well. With this
+  ;; disabled, regular ascii characters are used instead.
+                                          ;(setq mu4e-use-fancy-chars t)
+  ;; This enabled the thread like viewing of email similar to gmail's UI.
+  (setq mu4e-headers-include-related t)
+  (setq mu4e-attachment-dir  "~/Downloads")
+  ;; This prevents saving the email to the Sent folder since gmail will do this for us on their end.
+  ;;  (setq mu4e-sent-messages-behavior 'delete)
+  (setq message-kill-buffer-on-exit t)
+  (when (fboundp 'imagemagick-register-types)
+    (imagemagick-register-types))
+
+  ;; Sometimes html email is just not readable in a text based client, this lets me open the
+  ;; email in my browser.
+  (add-to-list 'mu4e-view-actions '("View in browser" . mu4e-action-view-in-browser) t)
+
+  ;; Spell checking ftw.
+  (add-hook 'mu4e-compose-mode-hook 'flyspell-mode)
+
+  ;; This hook correctly modifies the \Inbox and \Starred flags on email when they are marked.
+  ;; Without it refiling (archiving) and flagging (starring) email won't properly result in
+  ;; the corresponding gmail action.
+  (add-hook 'mu4e-mark-execute-pre-hook
+            (lambda (mark msg)
+              (cond ((member mark '(refile trash)) (mu4e-action-retag-message msg "-\\Inbox"))
+                    ((equal mark 'flag) (mu4e-action-retag-message msg "\\Starred"))
+                    ((equal mark 'unflag) (mu4e-action-retag-message msg "-\\Starred")))))
+
+
+
+  (defun my-make-mu4e-context (name address signature)
+    "Return a mu4e context named NAME with :match-func matching
+      its ADDRESS in From or CC fields of the parent message. The
+      context's `user-mail-address' is set to ADDRESS and its
+      `mu4e-compose-signature' to SIGNATURE."
+    (lexical-let ((addr-lex address))
+      (make-mu4e-context :name name
+                         :vars `((user-mail-address . ,address)
+                                 (mu4e-compose-signature . ,signature))
+                         :match-func
+                         (lambda (msg)
+                           (when msg
+                             (or (mu4e-message-contact-field-matches msg :to addr-lex)
+                                 (mu4e-message-contact-field-matches msg :cc addr-lex)))))))
+
+  (setq mu4e-contexts
+        `( ,(my-make-mu4e-context "fastmail" "arjen@wiersma.org"
+                                  "")
+           ,(my-make-mu4e-context "gmail" "arjenw@gmail.com"
+                                  "A very professional signature.")))
+
+  ;; This is a helper to help determine which account context I am in based
+  ;; on the folder in my maildir the email (eg. ~/.mail/nine27) is located in.
+  (defun mu4e-message-maildir-matches (msg rx)
+    (when rx
+      (if (listp rx)
+          ;; If rx is a list, try each one for a match
+          (or (mu4e-message-maildir-matches msg (car rx))
+              (mu4e-message-maildir-matches msg (cdr rx)))
+        ;; Not a list, check rx
+        (string-match rx (mu4e-message-field msg :maildir)))))
+
+  ;; Choose account label to feed msmtp -a option based on From header
+  ;; in Message buffer; This function must be added to
+  ;; message-send-mail-hook for on-the-fly change of From address before
+  ;; sending message since message-send-mail-hook is processed right
+  ;; before sending message.
+  (defun choose-msmtp-account ()
+    (if (message-mail-p)
+        (save-excursion
+          (let*
+              ((from (save-restriction
+                       (message-narrow-to-headers)
+                       (message-fetch-field "from")))
+               (account
+                (cond
+                 ((string-match "arjen@wiersma.org" from) "fastmail")
+                 ((string-match "arjenw@gmail.com" from) "gmail"))))
+            (setq message-sendmail-extra-arguments (list '"-a" account))))))
+
+  ;; Configure sending mail.
+  (setq message-send-mail-function 'message-send-mail-with-sendmail
+        sendmail-program "/usr/local/bin/msmtp"
+        user-full-name "Arjen Wiersma")
+
+  ;; Use the correct account context when sending mail based on the from header.
+  (setq message-sendmail-envelope-from 'header)
+  (add-hook 'message-send-mail-hook 'choose-msmtp-account)
+#+end_src
+
+#+begin_src emacs-lisp
+  (require 'org-mu4e)
+
+  ;;store link to message if in header view, not to header query
+  (setq org-mu4e-link-query-in-headers-mode nil)
+#+end_src
+
+* Modeline
+
+#+begin_src emacs-lisp
+  (use-package moody
+    :config
+    (setq x-underline-at-descent-line t)
+    (moody-replace-mode-line-buffer-identification)
+    (moody-replace-vc-mode))
+
+  (use-package minions
+    :config (minions-mode 1))
+#+end_src
+
+

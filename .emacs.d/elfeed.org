@@ -1,0 +1,96 @@
+* Blogs                                                              :elfeed:
+
+** Emacs                                                              :emacs:
+*** [[http://feeds.feedburner.com/emacsblog][M-x all-things-emacs]]                                              :emacs:
+*** [[http://oremacs.com/atom.xml][(or emacs]]                                                         :emacs:
+*** [[http://feeds.feedburner.com/sachac][sacha chua :: living an awesome life]]                              :emacs:
+*** [[http://sachachua.com/wp/feed/][sacha chua :: social intranet consultant and geek]]                 :emacs:
+*** [[http://endlessparentheses.com/atom.xml][Endless Parentheses]]                                               :emacs:
+*** [[http://emacs.wordpress.com/feed/][minor emacs wizardry]]                                              :emacs:
+*** [[http://www.planet.emacsen.org/atom.xml][Planet Emacsen]]                                                    :emacs:
+
+** Privacy                                                          :privacy:
+*** [[http://privacytrends.nl/feed/][Privacy Trends]]
+
+** React Native
+
+*** [[http://blog.reactnative.com/rss/][Use React Native]] :react native:
+*** [[https://github.com/facebook/react-native/releases.atom][Release notes from react]] :react native:
+
+** Security                                                        :security:
+
+*** [[https://krebsonsecurity.com/feed/][Krebs on Security]]
+*** [[http://www.malwaretech.com/feed][Malware Tech Blog]]
+
+** Sports
+
+*** [[http://www.dcrainmaker.com/feeds/posts/default][DC Rainmaker]]                                                    :running:
+
+** Linux
+
+*** [[http://www.archlinux.org/feeds/news/][Arch Linux: Recent news updates]]                                   :linux:
+*** [[http://planet.archlinux.org/atom.xml][Planet Arch Linux]]                                                 :linux:
+
+** Technology
+
+*** [[http://news.ycombinator.com/rss][Hacker News]]                                                        :tech:
+*** [[http://www.alistapart.com/rss.xml][A List Apart: The Full Feed]]                                        :tech:
+*** [[http://feeds2.feedburner.com/thenextweb][The Next Web]]                                                       :tech:
+*** [[http://feeds.feedburner.com/codinghorror/][Coding Horror]]                                                      :tech:
+*** [[http://coenraets.org/blog/feed/][Christophe Coenraets]]                                               :tech:
+*** [[http://blogs.msdn.com/excel/rss.xml][Office Blogs]]                                                       :tech:
+*** [[http://feeds.feedburner.com/HighScalability][High Scalability]]                                                   :tech:
+*** [[http://feeds.arstechnica.com/arstechnica/index/][Ars Technica]]                                                       :tech:
+*** [[http://thenewstack.io/blog/feed/][Blog – The New Stack]]                                               :tech:
+*** [[http://feeds.gawker.com/gizmodo/vip][Gizmodo]]                                                            :tech:
+*** [[http://www.flight404.com/blog/?feed=rss2][all manner of distractions]]                                         :tech:
+*** [[http://recode.net/feed/][Re/code]]                                                            :tech:
+*** [[http://syndication.thedailywtf.com/TheDailyWtf][The Daily WTF]]                                                      :tech:
+*** [[http://www.allthingsdistributed.com/atom.xml][All Things Distributed]]                                             :tech:
+*** [[http://allthingsd.com/feed][AllThingsD]]                                                         :tech:
+*** [[http://feeds.gawker.com/lifehacker/vip][Lifehacker]]                                                         :tech:
+*** [[http://feeds.feedburner.com/ScottHanselman][Scott Hanselman's Blog]]                                             :tech:
+*** [[http://feeds2.feedburner.com/webdesignerdepot][Webdesigner Depot]]                                                  :tech:
+*** [[http://feeds.feedburner.com/TechCrunch][TechCrunch]]                                                         :tech:
+
+** Almere
+*** [[http://www.almere.nl/de_stad/stadsdelen/almere_stadoost/almerestadoost][almerestadoost]]                                                   :almere:
+*** [[http://www.almere.nl/de_stad/actueel/persberichten/persberichtenalmere][persberichtenalmere]]                                              :almere:
+*** [[http://www.almere.nl/de_stad/stadsdelen/almere_stadcentrum/stadscentrum][stadscentrum]]                                                     :almere:
+*** [[http://www.almere.nl/leven_en_werken/verkeer_en_vervoer/werk_aan_de_weg/werkaandeweg][werk aan de weg]]                                                  :almere:
+
+** Mensen
+*** [[http://logic855.no-ip.info/blog/index.php?/feeds/index.rss2][Logic blog]]                                                       :people:
+*** [[http://herbsutter.spaces.live.com/feed.rss][Sutter's Mill]]                                                    :people:
+*** [[http://ejohn.org/index.rdf][John Resig]]                                                       :people:
+*** [[http://matthiasnehlsen.com/atom.xml][Matthias Nehlsen]]                                                 :people:
+*** [[http://steve-yegge.blogspot.com/feeds/posts/default][Stevey's Blog Rants]]                                              :people:
+*** [[http://herbsutter.wordpress.com/feed/][Sutter's Mill]]                                                    :people:
+*** [[http://www.mennovanslooten.nl/blog/atom][mennovanslooten.nl]]                                               :people:
+
+** Coding
+
+*** Java
+
+**** [[http://www.javalobby.org/forumRSS/18032.xml][Javalobby - The heart of the Java developer community]]             :java:
+**** [[http://feeds.feedburner.com/javaposse][The Java Posse]]                                                    :java:
+**** [[http://martinfowler.com/bliki/bliki.atom][Martin Fowler]]                                                     :java:
+**** [[http://java.sys-con.com/index.rss][Latest News from Java IoT]]                                         :java:
+**** [[http://spring.io/blog.atom][Spring]]                                                            :java:
+**** [[http://raibledesigns.com/rd/feed/entries/atom][Raible Designs]]                                                    :java:
+**** [[http://feeds.feedburner.com/ChaoticJava/][Chaotic Java]]                                                      :java:
+**** [[http://www.javaworld.com/index.xml][Latest headlines from JavaWorld]]                                   :java:
+**** [[http://feeds.feedburner.com/JavaCodeGeeks][Java Code Geeks]]                                                   :java:
+**** [[http://www.oreillynet.com/pub/feed/7?format=rss2][Java]]                                                              :java:
+**** [[http://www.dzone.com/feed/frontpage/rss.xml][dzone.com: latest front page]]                                      :java:
+
+*** Clojure
+
+**** [[http://feeds.feedburner.com/Clojure/coreBlog][Clojure/core Blog]]                                               :coding:
+**** [[http://carmenla.me/blog/rss.xml][Carmen La]]                                                       :coding:
+**** [[http://pipes.yahoo.com/pipes/pipe.run?_id=4cc8ebb9ae0b852d6ab7d94956ce2638&_render=rss][Clojure Pipe]]                                                    :coding:
+**** [[http://feeds.feedburner.com/LispCast][LispCast]]                                                        :coding:
+**** [[http://planet.clojure.in/atom.xml][Planet Clojure]]                                                  :coding:
+
+
+
